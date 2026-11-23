@@ -43,6 +43,9 @@ for (const F of FACES) {
 const AO_CURVE = [0.48, 0.66, 0.83, 1.0];
 const CAVE_LIGHT = 0.26;
 const UV_E = 0.0008;
+// what darkens corners for ambient occlusion: opaque blocks and foliage (not glass)
+const AO_OCC = new Uint8Array(256);
+for (let i = 0; i < 256; i++) AO_OCC[i] = OPAQUE[i] || (KIND[i] === 2 && i !== B.GLASS) ? 1 : 0;
 
 class Buf {
   constructor() { this.pos = []; this.uv = []; this.col = []; this.idx = []; this.n = 0; }
@@ -92,7 +95,7 @@ export function meshChunk(pad, top) {
   const lit = (x, y, z) => (y >= H || y > top[(z + PAD) * PX + (x + PAD)] ? 1 : CAVE_LIGHT);
   const light = propagateLight(pad);
   const blk = (x, y, z) => (light && y >= 0 && y < H ? LIGHT_CURVE[light[pidx(x, y, z)]] : 0);
-  const occ = (x, y, z) => (y < 0 || y >= H ? 0 : OPAQUE[pad[pidx(x, y, z)]]);
+  const occ = (x, y, z) => (y < 0 || y >= H ? 0 : AO_OCC[pad[pidx(x, y, z)]]);
 
   // skip the empty sky above the tallest block in this chunk
   let maxY = H - 1;

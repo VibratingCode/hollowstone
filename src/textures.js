@@ -119,15 +119,15 @@ const painters = {
   },
   [T.CANOPY](t) {
     // clustered leaves with see-through gaps (alpha-tested)
-    t.fill("#3f8a4a", 16);
+    t.fill("#3c8547", 18);
     for (let i = 0; i < 46; i++) t.set((t.rand() * S) | 0, (t.rand() * S) | 0, [0, 0, 0], 0);
     t.speck("#5fae68", 22); t.speck("#2c6a37", 18);
   },
   [T.DUSKCANOPY](t) {
     // Duskwood foliage: deep violet-teal, a Hollowstone signature colour
-    t.fill("#5a5fa6", 16);
+    t.fill("#4e529c", 18);
     for (let i = 0; i < 50; i++) t.set((t.rand() * S) | 0, (t.rand() * S) | 0, [0, 0, 0], 0);
-    t.speck("#7c88d6", 22); t.speck("#46a8a2", 14); t.speck("#3a3c78", 14);
+    t.speck("#6d78c6", 22); t.speck("#3f9c97", 12); t.speck("#2f3166", 22);
   },
   [T.TIMBER](t) {
     t.fill("#b08a5c", 7);

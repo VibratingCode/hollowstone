@@ -9,7 +9,7 @@ import { seedFromString } from "./noise.js";
 import { BIOME_NAMES } from "./worldgen.js";
 import * as Save from "./save.js";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.2";
 
 // ---------------------------------------------------------------- settings
 const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false }, loadSettings());
