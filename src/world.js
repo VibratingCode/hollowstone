@@ -20,6 +20,9 @@ export class World {
 
   chunk(cx, cz) { return this.chunks.get(key(cx, cz)); }
 
+  /** Stop delivering results (late worker meshes) once this world is replaced. */
+  dispose() { this.disposed = true; this.chunks.clear(); }
+
   ensureChunk(cx, cz) {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
@@ -127,7 +130,7 @@ export class World {
         const k = key(c.cx, c.cz);
         this.pool.run(pad, top).then((mesh) => {
           c.meshing = false;
-          if (this.chunks.get(k) === c) onMesh(c, mesh);
+          if (!this.disposed && this.chunks.get(k) === c) onMesh(c, mesh);
         });
       } else {
         onMesh(c, this.buildMesh(c));

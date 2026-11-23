@@ -235,6 +235,7 @@ async function renderWorldList() {
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 
 function startTitleDemo() {
+  if (world) world.dispose();
   clearMeshes();
   world = new World(seedFromString("hollowstone-title"));
   world.setMeshPool(pool);
@@ -249,6 +250,8 @@ async function startWorld(m) {
   show("loading");
   state = "loading";
   $("loading-text").textContent = "Loading " + m.name + "…";
+  if (world) world.dispose();
+  world = null;
   clearMeshes();
   const edits = await Save.loadEdits(m.id);
   world = new World(seedFromString(m.seed), edits);
