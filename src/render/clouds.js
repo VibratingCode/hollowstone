@@ -55,7 +55,7 @@ export function updateClouds(mesh, cam, s, time) {
   u.uTime.value = time;
   u.uCam.value.copy(cam);
   u.uHorizon.value.copy(s.horizon);
-  u.uLit.value.setRGB(0.09, 0.11, 0.17).lerp(new THREE.Color(1, 1, 1), s.day);
+  u.uLit.value.setRGB(0.07, 0.09, 0.14).lerp(new THREE.Color(0.86, 0.88, 0.9), s.day);
   u.uLit.value.lerp(new THREE.Color("#ffb27a"), s.sunset * 0.55);
   u.uShade.value.copy(u.uLit.value).multiplyScalar(0.68).lerp(s.top, 0.15);
 }

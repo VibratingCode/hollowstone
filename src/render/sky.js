@@ -31,7 +31,7 @@ export function skyState(t, out = {}) {
   out.night = 1 - smooth(-0.18, 0.02, e);
   out.sunset = Math.exp(-Math.pow((e - 0.02) / 0.14, 2));
 
-  const sunI = smooth(-0.03, 0.22, e) * 2.9;
+  const sunI = smooth(-0.03, 0.22, e) * 2.45;
   const moonI = smooth(0.02, -0.25, e) * 0.42;
   out.sunColor = (out.sunColor || new THREE.Color()).set("#ffae66").lerp(C("#fff4e2"), smooth(0.0, 0.4, e));
   out.lightDir = (out.lightDir || new THREE.Vector3());
@@ -41,7 +41,7 @@ export function skyState(t, out = {}) {
 
   out.hemiSky = (out.hemiSky || new THREE.Color()).copy(out.top).lerp(out.horizon, 0.45);
   out.hemiGround = (out.hemiGround || new THREE.Color()).set("#5a4a3a").multiplyScalar(0.35 + 0.65 * out.day);
-  out.hemiIntensity = 0.16 + 1.05 * out.day;
+  out.hemiIntensity = 0.14 + 0.95 * out.day;
   return out;
 }
 

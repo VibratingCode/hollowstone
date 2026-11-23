@@ -6,7 +6,7 @@ import { ATLAS_COLS, ATLAS_ROWS } from "../mesher.js";
 export class Hand {
   constructor(camera, atlas) {
     this.mat = new THREE.MeshLambertMaterial({ map: atlas, alphaTest: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
-    this.cube = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), this.mat);
+    this.cube = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), this.mat);
     this.flat = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.55), this.mat);
     this.group = new THREE.Group();
     this.group.add(this.cube, this.flat);
@@ -52,7 +52,7 @@ export class Hand {
     const s = Math.sin((1 - this.swing) * Math.PI) * (this.swing > 0 ? 1 : 0);
     const bobX = Math.sin(this.bob) * 0.025 * Math.min(1, moveSpeed / 4);
     const bobY = Math.abs(Math.cos(this.bob)) * 0.03 * Math.min(1, moveSpeed / 4);
-    this.group.position.set(0.5 + bobX - s * 0.12, -0.46 + bobY - s * 0.1 - this.switchT * 0.35, -0.78 - s * 0.08);
+    this.group.position.set(0.62 + bobX - s * 0.14, -0.56 + bobY - s * 0.1 - this.switchT * 0.35, -0.95 - s * 0.08);
     this.group.rotation.set(0.12 - s * 0.9, -0.72 + s * 0.3, s * 0.2);
     this.flat.rotation.y = 0.5;
     this.mat.color.setScalar(brightness);

@@ -30,7 +30,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
@@ -426,7 +426,7 @@ function applyEnvironment(eye) {
   } else {
     scene.fog.color.copy(sky.horizon);
     const far = player ? fogFar() : 7 * 16 * 0.95; // title flyover sees further
-    scene.fog.near = far * 0.5; scene.fog.far = far;
+    scene.fog.near = far * 0.6; scene.fog.far = far;
   }
   skyDome.visible = !underwater;
   $("water-tint").hidden = !underwater;

@@ -9,7 +9,7 @@ export function createPost(renderer, scene, camera) {
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const size = renderer.getSize(new THREE.Vector2());
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.55, 0.55, 0.88);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.5, 0.5, 0.93);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   return {
