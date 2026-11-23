@@ -9,7 +9,7 @@ import { seedFromString } from "./noise.js";
 import { BIOME_NAMES } from "./worldgen.js";
 import * as Save from "./save.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 // ---------------------------------------------------------------- settings
 const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false }, loadSettings());
@@ -206,10 +206,14 @@ async function saveNow() {
   try { await Save.saveEdits(meta.id, world); await Save.saveWorldMeta(meta); } catch (e) { console.warn("Save failed", e); }
 }
 
+function lockPointer() {
+  try { const r = canvas.requestPointerLock?.(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* needs a click first */ }
+}
+
 function resume() {
   show(null);
   state = "playing";
-  canvas.requestPointerLock?.();
+  lockPointer();
 }
 
 function pause() {
@@ -236,7 +240,7 @@ document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement !== canvas && state === "playing") pause();
 });
 
-canvas.addEventListener("click", () => { if (state === "playing" && document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); });
+canvas.addEventListener("click", () => { if (state === "playing" && document.pointerLockElement !== canvas) lockPointer(); });
 
 document.addEventListener("mousemove", (e) => {
   if (state !== "playing" || document.pointerLockElement !== canvas) return;

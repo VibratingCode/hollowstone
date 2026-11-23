@@ -125,9 +125,9 @@ const painters = {
   },
   [T.DUSKCANOPY](t) {
     // Duskwood foliage: deep violet-teal, a Hollowstone signature colour
-    t.fill("#4b4f8f", 16);
+    t.fill("#5a5fa6", 16);
     for (let i = 0; i < 50; i++) t.set((t.rand() * S) | 0, (t.rand() * S) | 0, [0, 0, 0], 0);
-    t.speck("#6b78c4", 20); t.speck("#3a8f8c", 14); t.speck("#2e2f61", 14);
+    t.speck("#7c88d6", 22); t.speck("#46a8a2", 14); t.speck("#3a3c78", 14);
   },
   [T.TIMBER](t) {
     t.fill("#b08a5c", 7);
@@ -189,8 +189,8 @@ const painters = {
     t.set(11, 4, hex("#ffffff"));
   },
   [T.SNOWPACK](t) {
-    t.fill("#eef4fa", 7);
-    t.speck("#d6e2ee", 18); t.speck("#ffffff", 10);
+    t.fill("#e9f0f7", 9);
+    t.speck("#cfdceb", 30); t.speck("#ffffff", 14); t.speck("#bccbdc", 8);
   },
   [T.DEEPCORE](t) {
     t.fill("#2a2433", 14);

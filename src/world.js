@@ -2,10 +2,10 @@
 
 import { Chunk, CX, CZ, H, idx, key } from "./chunk.js";
 import { createGenerator } from "./worldgen.js";
-import { meshChunk, PX, PZ, pidx } from "./mesher.js";
+import { meshChunk, PX, PZ, PAD, pidx } from "./mesher.js";
 import { KIND, B } from "./blocks.js";
 
-const lightBlocking = (b) => KIND[b] === 1 || KIND[b] === 2;
+const lightBlocking = (b) => KIND[b] === 1; // leaves and glass let sky light through
 
 export class World {
   constructor(seed, edits = new Map()) {
@@ -55,6 +55,7 @@ export class World {
     if (!c) return false;
     const lx = wx - cx * CX, lz = wz - cz * CZ, i = idx(lx, wy, lz);
     if (c.blocks[i] === id) return false;
+    this._wasGlow = c.blocks[i] === B.LUMEN;
     c.blocks[i] = id;
     c.computeColumn(lx, lz, lightBlocking);
     const k = key(cx, cz);
@@ -65,8 +66,9 @@ export class World {
     c.dirty = true;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       if (!dx && !dz) continue;
-      const nearX = dx === 0 || (dx < 0 ? lx <= 1 : lx >= CX - 2);
-      const nearZ = dz === 0 || (dz < 0 ? lz <= 1 : lz >= CZ - 2);
+      const reach = id === B.LUMEN || this._wasGlow ? PAD : 1; // light edits reach further than AO
+      const nearX = dx === 0 || (dx < 0 ? lx < reach + 1 : lx >= CX - reach - 1);
+      const nearZ = dz === 0 || (dz < 0 ? lz < reach + 1 : lz >= CZ - reach - 1);
       if (nearX && nearZ) { const n = this.chunk(cx + dx, cz + dz); if (n) n.dirty = true; }
     }
     return true;
@@ -81,11 +83,11 @@ export class World {
     const pad = this._pad, top = this._top;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       const n = this.chunk(c.cx + dx, c.cz + dz);
-      const x0 = dx < 0 ? -1 : dx > 0 ? CX : 0, x1 = dx < 0 ? -1 : dx > 0 ? CX : CX - 1;
-      const z0 = dz < 0 ? -1 : dz > 0 ? CZ : 0, z1 = dz < 0 ? -1 : dz > 0 ? CZ : CZ - 1;
+      const x0 = dx < 0 ? -PAD : dx > 0 ? CX : 0, x1 = dx < 0 ? -1 : dx > 0 ? CX + PAD - 1 : CX - 1;
+      const z0 = dz < 0 ? -PAD : dz > 0 ? CZ : 0, z1 = dz < 0 ? -1 : dz > 0 ? CZ + PAD - 1 : CZ - 1;
       for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
         const lx = x - dx * CX, lz = z - dz * CZ;
-        top[(z + 1) * PX + (x + 1)] = n.top[lz * CX + lx];
+        top[(z + PAD) * PX + (x + PAD)] = n.top[lz * CX + lx];
         for (let y = 0; y < H; y++) pad[pidx(x, y, z)] = n.blocks[idx(lx, y, lz)];
       }
     }

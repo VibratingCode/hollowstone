@@ -5,8 +5,10 @@
 import { BLOCKS, KIND, OPAQUE, B } from "./blocks.js";
 import { CX, CZ, H } from "./chunk.js";
 
-export const PX = CX + 2, PZ = CZ + 2, PLAYER = PX * PZ;
-export const pidx = (x, y, z) => y * PLAYER + (z + 1) * PX + (x + 1); // x,z in [-1, 16]
+export const PAD = 8;                         // border copied from neighbours (block light reaches this far)
+export const PX = CX + 2 * PAD, PZ = CZ + 2 * PAD, PLAYER = PX * PZ;
+export const pidx = (x, y, z) => y * PLAYER + (z + PAD) * PX + (x + PAD); // x,z in [-PAD, 16+PAD)
+export const LIGHT_MAX = 12;
 
 export const ATLAS_COLS = 8, ATLAS_ROWS = 8;
 
@@ -52,13 +54,44 @@ class Buf {
   }
 }
 
+const LIGHT_CURVE = new Float32Array(LIGHT_MAX + 1);
+for (let i = 0; i <= LIGHT_MAX; i++) LIGHT_CURVE[i] = i === 0 ? 0 : Math.pow(i / LIGHT_MAX, 1.6) * 1.05;
+
+// Flood-fill light from glowing blocks (Lumen) through non-opaque cells. Returns null if there are none.
+function propagateLight(pad) {
+  let light = null, queue = null, head = 0, tail = 0;
+  for (let i = 0; i < pad.length; i++) {
+    if (!BLOCKS[pad[i]] || !BLOCKS[pad[i]].glow) continue;
+    if (!light) { light = new Uint8Array(pad.length); queue = new Int32Array(pad.length); }
+    light[i] = LIGHT_MAX; queue[tail++] = i;
+  }
+  if (!light) return null;
+  const neighbours = [1, -1, PX, -PX, PLAYER, -PLAYER];
+  while (head < tail) {
+    const i = queue[head++];
+    const L = light[i] - 1;
+    if (L <= 0) continue;
+    const x = (i % PX), z = ((i / PX) | 0) % PZ;
+    for (let n = 0; n < 6; n++) {
+      if ((n === 0 && x === PX - 1) || (n === 1 && x === 0) || (n === 2 && z === PZ - 1) || (n === 3 && z === 0)) continue;
+      const j = i + neighbours[n];
+      if (j < 0 || j >= pad.length) continue;
+      if (OPAQUE[pad[j]] || light[j] >= L) continue;
+      light[j] = L; queue[tail++] = j;
+    }
+  }
+  return light;
+}
+
 /**
  * pad:  Uint8Array(PX*PZ*H) blocks, chunk plus 1-wide border
  * top:  Uint8Array(PX*PZ) highest light-blocking y per column (same padding)
  */
 export function meshChunk(pad, top) {
   const solid = new Buf(), water = new Buf();
-  const lit = (x, y, z) => (y >= H || y > top[(z + 1) * PX + (x + 1)] ? 1 : CAVE_LIGHT);
+  const lit = (x, y, z) => (y >= H || y > top[(z + PAD) * PX + (x + PAD)] ? 1 : CAVE_LIGHT);
+  const light = propagateLight(pad);
+  const blk = (x, y, z) => (light && y >= 0 && y < H ? LIGHT_CURVE[light[pidx(x, y, z)]] : 0);
   const occ = (x, y, z) => (y < 0 || y >= H ? 0 : OPAQUE[pad[pidx(x, y, z)]]);
 
   // skip the empty sky above the tallest block in this chunk
@@ -114,9 +147,9 @@ export function meshChunk(pad, top) {
             const uv = UVS[v];
             target.uv.push(u0 + (u1 - u0) * uv[0], vB + (vT - vB) * uv[1]);
 
-            let bright;
+            let r, g, bch;
             if (def.glow) {
-              bright = 1.0;
+              r = 0.85; g = 1.0; bch = 1.0;
             } else {
               const o = F.ao[v];
               const s1x = x + o[0], s1y = y + o[1], s1z = z + o[2];
@@ -127,10 +160,13 @@ export function meshChunk(pad, top) {
               aos[v] = ao;
               const sky = (skyF + (s1 ? CAVE_LIGHT : lit(s1x, s1y, s1z)) +
                 (s2 ? CAVE_LIGHT : lit(s2x, s2y, s2z)) + (cc ? CAVE_LIGHT : lit(ccx, ccy, ccz))) / 4;
-              bright = F.shade * AO_CURVE[ao] * sky;
-              if (kind === 3) bright = Math.max(bright, 0.55 * F.shade);
+              const bl = light ? (blk(x + F.n[0], y + F.n[1], z + F.n[2]) + (s1 ? 0 : blk(s1x, s1y, s1z)) +
+                (s2 ? 0 : blk(s2x, s2y, s2z)) + (cc ? 0 : blk(ccx, ccy, ccz))) / 4 : 0;
+              const k = F.shade * AO_CURVE[ao];
+              r = k * Math.max(sky, bl * 0.55); g = k * Math.max(sky, bl * 0.95); bch = k * Math.max(sky, bl * 0.9);
+              if (kind === 3) { const m = 0.55 * F.shade; r = Math.max(r, m); g = Math.max(g, m); bch = Math.max(bch, m); }
             }
-            target.col.push(bright, bright, bright);
+            target.col.push(r, g, bch);
           }
           target.n += 4;
           // flip the quad's diagonal when it makes the AO gradient look right

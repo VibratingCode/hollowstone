@@ -1,7 +1,7 @@
 // Run: node tests/core.test.mjs
 import assert from "node:assert/strict";
 import { createGenerator, BIOME_NAMES } from "../src/worldgen.js";
-import { meshChunk, PX, PZ, pidx } from "../src/mesher.js";
+import { meshChunk, PX, PZ, PAD, pidx } from "../src/mesher.js";
 import { Chunk, CX, CZ, H, SEA, idx } from "../src/chunk.js";
 import { B, BLOCKS, OPAQUE, KIND } from "../src/blocks.js";
 import { raycast } from "../src/raycast.js";
@@ -48,14 +48,14 @@ function padFor(cx, cz) {
   const chunks = {};
   for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
     const c = new Chunk(cx + dx, cz + dz, gen.generate(cx + dx, cz + dz));
-    c.computeTop((b) => KIND[b] === 1 || KIND[b] === 2);
+    c.computeTop((b) => KIND[b] === 1);
     chunks[dx + "," + dz] = c;
   }
   const pad = new Uint8Array(PX * PZ * H), top = new Uint8Array(PX * PZ);
-  for (let z = -1; z <= CZ; z++) for (let x = -1; x <= CX; x++) {
+  for (let z = -PAD; z < CZ + PAD; z++) for (let x = -PAD; x < CX + PAD; x++) {
     const dx = x < 0 ? -1 : x >= CX ? 1 : 0, dz = z < 0 ? -1 : z >= CZ ? 1 : 0;
     const c = chunks[dx + "," + dz], lx = x - dx * CX, lz = z - dz * CZ;
-    top[(z + 1) * PX + (x + 1)] = c.top[lz * CX + lx];
+    top[(z + PAD) * PX + (x + PAD)] = c.top[lz * CX + lx];
     for (let y = 0; y < H; y++) pad[pidx(x, y, z)] = c.blocks[idx(lx, y, lz)];
   }
   return { pad, top };
@@ -72,7 +72,7 @@ test("mesh is valid, faces wind outward, timing is sane", () => {
   assert.equal(s.uvs.length, s.vertexCount * 2);
   assert.equal(s.indices.length, (s.vertexCount / 4) * 6);
   for (let i = 0; i < s.indices.length; i++) assert.ok(s.indices[i] < s.vertexCount);
-  for (const c of s.colors) assert.ok(c > 0 && c <= 1);
+  for (const c of s.colors) assert.ok(c > 0 && c <= 1.06, "colour " + c);
   for (const u of s.uvs) assert.ok(u >= 0 && u <= 1);
   // winding check: triangle normal must point away from its block centre
   let bad = 0;
@@ -102,6 +102,24 @@ test("winding: an isolated cube's faces all point outward", () => {
     const cen = [0, 1, 2].map((k) => (p[0][k] + p[1][k] + p[2][k]) / 3 - [5.5, 50.5, 5.5][k]);
     assert.ok(n[0] * cen[0] + n[1] * cen[1] + n[2] * cen[2] > 0, "inward-facing triangle");
   }
+});
+
+test("lumen lights its surroundings", () => {
+  const pad = new Uint8Array(PX * PZ * H), top = new Uint8Array(PX * PZ).fill(100); // everything is "underground"
+  for (let x = 0; x < 10; x++) for (let z = 0; z < 10; z++) pad[pidx(x, 40, z)] = B.SLATE; // a floor
+  pad[pidx(5, 41, 5)] = B.LUMEN;
+  const s = meshChunk(pad, top).solid;
+  // find top faces of the floor: near the crystal vs far away
+  let near = 0, far = 1;
+  for (let v = 0; v < s.vertexCount; v++) {
+    const [x, y, z] = [s.positions[v * 3], s.positions[v * 3 + 1], s.positions[v * 3 + 2]];
+    if (y !== 41) continue;
+    const g = s.colors[v * 3 + 1], d = Math.hypot(x - 5.5, z - 5.5);
+    if (d < 2.5) near = Math.max(near, g);
+    if (d > 6.5) far = Math.min(far, g);
+  }
+  assert.ok(near > 0.6, "near " + near);
+  assert.ok(far < near, "far " + far);
 });
 
 test("generation timing", () => {
