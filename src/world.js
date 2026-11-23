@@ -115,7 +115,8 @@ export class World {
     }
     let meshed = 0;
     for (const [dx, dz] of this._order(radius)) {
-      if (performance.now() - t0 > budgetMs && meshed > 0) break;
+      if (!this.pool && performance.now() - t0 > budgetMs && meshed > 0) break;
+      if (this.pool && performance.now() - t0 > budgetMs * 2) break;
       const c = this.chunk(pcx + dx, pcz + dz);
       if (!c || !c.dirty || c.meshing || !this.neighboursLoaded(c.cx, c.cz)) continue;
       c.dirty = false;

@@ -425,7 +425,8 @@ function applyEnvironment(eye) {
     scene.fog.near = 0.5; scene.fog.far = 24;
   } else {
     scene.fog.color.copy(sky.horizon);
-    scene.fog.near = fogFar() * 0.5; scene.fog.far = fogFar();
+    const far = player ? fogFar() : 7 * 16 * 0.95; // title flyover sees further
+    scene.fog.near = far * 0.5; scene.fog.far = far;
   }
   skyDome.visible = !underwater;
   $("water-tint").hidden = !underwater;
@@ -469,12 +470,12 @@ function frame(now) {
     // cinematic flyover behind the title screen
     titleCam.angle += dt * 0.035;
     timeOfDay = 0.69 + Math.sin(elapsed * 0.02) * 0.05;
-    const r = 58, c = titleCam.center;
+    const r = 36, c = titleCam.center;
     const px = c[0] + Math.cos(titleCam.angle) * r, pz = c[2] + Math.sin(titleCam.angle) * r;
     const groundY = world.gen.column(Math.floor(px), Math.floor(pz)).h;
-    titleCam.y += (Math.max(groundY + 22, c[1] + 26) - titleCam.y) * Math.min(1, dt * 0.5);
+    titleCam.y += (Math.max(groundY + 16, c[1] + 18) - titleCam.y) * Math.min(1, dt * 0.5);
     camera.position.set(px, titleCam.y, pz);
-    camera.lookAt(c[0] + Math.cos(titleCam.angle + 1.6) * 30, c[1] + 4, c[2] + Math.sin(titleCam.angle + 1.6) * 30);
+    camera.lookAt(c[0] + Math.cos(titleCam.angle + 1.9) * 26, c[1] + 2, c[2] + Math.sin(titleCam.angle + 1.9) * 26);
     world.update(Math.floor(px / CX), Math.floor(pz / CZ), Math.min(settings.renderDistance, 7), 5, onMesh, onUnload);
     if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
   }
