@@ -71,4 +71,20 @@ test("jumping clears one block", () => {
   assert.ok(maxY - 111 > 1.1 && maxY - 111 < 1.6, "jump height " + (maxY - 111));
 });
 
+// async pool test (fake pool with 1 slot, resolves later)
+const wp = new World(777);
+let free = true, queue = [];
+wp.setMeshPool({ idle: () => free, run() { free = false; return new Promise((res) => queue.push(() => { free = true; res({ solid: { vertexCount: 0 }, water: { vertexCount: 0 } }); })); } });
+const meshedKeys = new Set();
+for (let i = 0; i < 400; i++) {
+  wp.update(0, 0, 2, 50, (c) => meshedKeys.add(c.cx + "," + c.cz), () => {});
+  const job = queue.shift(); if (job) job();
+  await new Promise((r) => setTimeout(r, 0));
+  if (wp.pendingAround(0, 0, 2) === 0) break;
+}
+assert.equal(wp.pendingAround(0, 0, 2), 0, "pending chunks left");
+assert.equal(meshedKeys.size, 25, "meshed " + meshedKeys.size);
+console.log("  ok  worker pool path meshes every chunk");
+pass++;
+
 console.log(`\n${pass} tests passed`);

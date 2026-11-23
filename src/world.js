@@ -122,9 +122,9 @@ export class World {
       if (this.pool && performance.now() - t0 > budgetMs * 2) break;
       const c = this.chunk(pcx + dx, pcz + dz);
       if (!c || !c.dirty || c.meshing || !this.neighboursLoaded(c.cx, c.cz)) continue;
-      c.dirty = false;
       if (this.pool) {
-        if (!this.pool.idle()) break;
+        if (!this.pool.idle()) break;   // check before clearing dirty, or the chunk is lost
+        c.dirty = false;
         c.meshing = true;
         const { pad, top } = this.buildPad(c);
         const k = key(c.cx, c.cz);
@@ -133,6 +133,7 @@ export class World {
           if (!this.disposed && this.chunks.get(k) === c) onMesh(c, mesh);
         });
       } else {
+        c.dirty = false;
         onMesh(c, this.buildMesh(c));
       }
       meshed++;
