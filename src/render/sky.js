@@ -39,9 +39,10 @@ export function skyState(t, out = {}) {
   if (sunI >= moonI) { out.lightDir.copy(sunDir); out.lightColor.copy(out.sunColor); out.lightIntensity = sunI; }
   else { out.lightDir.copy(sunDir).negate(); out.lightColor.set("#9db4ff"); out.lightIntensity = moonI; }
 
-  out.hemiSky = (out.hemiSky || new THREE.Color()).copy(out.top).lerp(out.horizon, 0.45);
+  out.hemiSky = (out.hemiSky || new THREE.Color()).copy(out.top).lerp(out.horizon, 0.55);
+  if (out.night > 0.5) out.hemiSky.lerp(C("#3a4f86"), 0.5); // moonlit blue fill
   out.hemiGround = (out.hemiGround || new THREE.Color()).set("#5a4a3a").multiplyScalar(0.35 + 0.65 * out.day);
-  out.hemiIntensity = 0.14 + 0.95 * out.day;
+  out.hemiIntensity = 0.3 + 0.8 * out.day + 0.35 * out.sunset;
   return out;
 }
 
