@@ -9,7 +9,7 @@ import { seedFromString } from "./noise.js";
 import { BIOME_NAMES } from "./worldgen.js";
 import * as Save from "./save.js";
 
-export const VERSION = "0.1.2";
+export const VERSION = "0.1.3";
 
 // ---------------------------------------------------------------- settings
 const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false }, loadSettings());
@@ -27,6 +27,20 @@ const SKY = new THREE.Color("#9ccbe3"), WATER_FOG = new THREE.Color("#1c4a73");
 const scene = new THREE.Scene();
 scene.background = SKY.clone();
 scene.fog = new THREE.Fog(SKY.clone(), 50, 90);
+// gradient sky dome that follows the camera; its horizon colour matches the fog
+const skyDome = new THREE.Mesh(
+  new THREE.SphereGeometry(500, 24, 12),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: new THREE.Color("#3f86c4") }, horizon: { value: SKY.clone() }, bottom: { value: new THREE.Color("#c9dde6") } },
+    vertexShader: "varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+    fragmentShader: "uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; varying vec3 vDir;" +
+      "void main(){ float h = vDir.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(horizon, bottom, clamp(-h*3.0,0.0,1.0));" +
+      " gl_FragColor = vec4(c, 1.0); }",
+  }),
+);
+skyDome.renderOrder = -1;
+scene.add(skyDome);
 const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.08, 1000);
 camera.rotation.order = "YXZ";
 
@@ -334,6 +348,7 @@ function applyFog(isUnder) {
     scene.fog.near = fogFar() * 0.55; scene.fog.far = fogFar();
   }
   $("water-tint").hidden = !isUnder;
+  skyDome.visible = !isUnder;
 }
 const fogFar = () => settings.renderDistance * 16 * 0.92;
 
@@ -360,6 +375,7 @@ function frame(now) {
 
     const [ex, ey, ez] = player.eye();
     camera.position.set(ex, ey, ez);
+    skyDome.position.set(ex, ey, ez);
     camera.rotation.set(player.pitch, player.yaw, 0);
 
     // stream chunks around the player
