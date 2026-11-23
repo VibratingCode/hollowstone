@@ -18,21 +18,25 @@ An original block-building sandbox that runs in your browser. Dig, build and exp
 | Middle mouse | Pick the block you're looking at |
 | 1–9 / wheel | Choose hotbar slot |
 | E | Block picker |
+| G | Graphics: Fancy / Fast |
 | F | Toggle flying |
 | F3 | Debug info |
 | Esc | Pause menu and settings |
 
-## What's in 0.1.0
+## What's in 0.2.0: The Light Update
 
-- Infinite, seeded world streamed in 16×16×128 chunks
-- Biomes: Meadow, Duskwood (violet forests), Dunes, Frostland, Peaks, Shore, Ocean
-- Caves, plus deep **hollows**: huge caverns lit by glowing Lumen crystals
-- 19 original blocks with procedurally painted textures (no third-party art)
-- Smooth ambient occlusion and sky-light shading, so caves are dark
-- Walking, jumping, sprinting, sneaking, swimming and flying, with proper voxel collision
-- Break and place blocks; worlds save automatically in your browser (IndexedDB)
-- World list: create (with optional seed), play and delete worlds
-- Settings: render distance, field of view, mouse sensitivity
+- **Day and night**: sun, moon, stars, sunsets; day length and time of day in settings
+- **Real-time shadows** from the sun and moon
+- **Living water**: waves, sky reflections, sun glints
+- **HDR + bloom + ACES** tone mapping: Lumen, Glowcaps and the sun really glow
+- **Pixel clouds**, **wind** on leaves and plants, **fireflies** at night, light **motes** in the hollows
+- **Flora**: Bellgrass, Emberbloom, Frostbell, Glowcap
+- Held block, view bob, sprint FOV kick, break particles
+- Cinematic title-screen flyover
+- Chunk meshing on **Web Workers**
+
+And from 0.1: an endless seeded world, seven biomes, caves and the Lumen-lit **hollows**, 23 original
+blocks with procedurally painted textures, voxel physics, building, and IndexedDB saves.
 
 ## Running locally
 
@@ -65,6 +69,13 @@ node tests/world.test.mjs
 | `src/raycast.js` | Block targeting |
 | `src/textures.js` | Procedural texture atlas and hotbar icons |
 | `src/save.js` | IndexedDB saves |
+| `src/mesh.worker.js` | Off-thread chunk meshing |
+| `src/render/sky.js` | Day/night cycle, sky dome, sun, moon, stars |
+| `src/render/materials.js` | Lit terrain (shadows, block light, wind) and water shaders |
+| `src/render/clouds.js` | Pixel clouds |
+| `src/render/effects.js` | Break particles, fireflies, motes |
+| `src/render/hand.js` | Held block |
+| `src/render/post.js` | Bloom and tone mapping |
 | `src/main.js` | Renderer, input, HUD, menus, game loop |
 
 Hollowstone is an independent, original project, not affiliated with any other game or studio. See [CREDITS.md](CREDITS.md).

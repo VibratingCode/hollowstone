@@ -18,7 +18,7 @@ import { createPost } from "./render/post.js";
 export const VERSION = "0.2.0";
 
 // ---------------------------------------------------------------- settings
-const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false, graphics: "fancy", dayLength: 20 }, loadSettings());
+const settings = Object.assign({ renderDistance: 8, fov: 75, sensitivity: 1, invertY: false, graphics: "fancy", dayLength: 20 }, loadSettings());
 function loadSettings() { try { return JSON.parse(localStorage.getItem("hollowstone.settings") || "{}"); } catch (e) { return {}; } }
 function storeSettings() { try { localStorage.setItem("hollowstone.settings", JSON.stringify(settings)); } catch (e) { /* private mode */ } }
 const fancy = () => settings.graphics === "fancy";
