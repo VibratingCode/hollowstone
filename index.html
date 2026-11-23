@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hollowstone</title>
+  <meta name="description" content="Hollowstone: an original block-building sandbox that runs in your browser.">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" hidden>
+    <div class="crosshair"></div>
+    <div id="hotbar"></div>
+    <div id="toast"></div>
+    <pre id="debug" hidden></pre>
+    <div class="help">WASD move · Space jump (double-tap to fly) · Shift sneak/down · Ctrl sprint · LMB break · RMB place · MMB pick · E blocks · F3 debug · Esc menu</div>
+  </div>
+  <div id="water-tint" hidden></div>
+
+  <section id="title" class="overlay">
+    <div class="panel title-panel">
+      <div class="logo-row"><img src="assets/logo.svg" alt="" width="56" height="56"><div><h1>Hollowstone</h1><p class="sub">An original block-building sandbox · <span id="version"></span></p></div></div>
+      <h2>Your worlds</h2>
+      <div id="world-list"></div>
+      <h2>Create a world</h2>
+      <form id="create-form" class="create">
+        <label>Name<input id="new-name" maxlength="40" placeholder="New World"></label>
+        <label>Seed<input id="new-seed" maxlength="40" placeholder="Random"></label>
+        <button class="btn primary" type="submit">Create &amp; play</button>
+      </form>
+      <p class="fine">Worlds save automatically in this browser. <a href="https://vibratingcode.github.io/hollowstone-hub/#/p/hollowstone" target="_blank" rel="noopener">Dev hub &amp; roadmap ↗</a></p>
+    </div>
+  </section>
+
+  <section id="loading" class="overlay" hidden>
+    <div class="panel small">
+      <p id="loading-text">Loading…</p>
+      <div class="bar"><span id="loading-bar"></span></div>
+    </div>
+  </section>
+
+  <section id="pause" class="overlay" hidden>
+    <div class="panel small">
+      <h1>Paused</h1>
+      <button id="resume" class="btn primary wide">Back to the world</button>
+      <div class="settings">
+        <label>Render distance <span id="set-rd-val"></span><input id="set-rd" type="range" min="2" max="12" step="1"></label>
+        <label>Field of view <span id="set-fov-val"></span><input id="set-fov" type="range" min="55" max="110" step="1"></label>
+        <label>Mouse sensitivity <span id="set-sens-val"></span><input id="set-sens" type="range" min="0.2" max="3" step="0.1"></label>
+      </div>
+      <button id="quit" class="btn wide">Save &amp; quit to title</button>
+    </div>
+  </section>
+
+  <section id="picker" class="overlay" hidden>
+    <div class="panel">
+      <div class="picker-head"><h1>Blocks</h1><button id="picker-close" class="btn ghost">Close (E)</button></div>
+      <p class="sub">Pick a block for the selected hotbar slot.</p>
+      <div id="picker-grid"></div>
+    </div>
+  </section>
+
+  <noscript>Hollowstone needs JavaScript.</noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
