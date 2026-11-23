@@ -1,48 +1,60 @@
 import * as THREE from "three";
 import { World } from "./world.js";
-import { Player, PLAYER_W, PLAYER_H, EYE } from "./player.js";
+import { Player, PLAYER_W, PLAYER_H } from "./player.js";
 import { raycast } from "./raycast.js";
-import { buildAtlas, blockIcon } from "./textures.js";
-import { BLOCKS, HOTBAR, KIND, B } from "./blocks.js";
-import { CX, CZ, H } from "./chunk.js";
+import { buildAtlas, blockIcon, tilePalette } from "./textures.js";
+import { BLOCKS, HOTBAR, KIND, GLOW, B } from "./blocks.js";
+import { CX, CZ, H, key as chunkKey } from "./chunk.js";
 import { seedFromString } from "./noise.js";
 import { BIOME_NAMES } from "./worldgen.js";
 import * as Save from "./save.js";
+import { skyState, clockString, createSkyDome, updateSkyDome } from "./render/sky.js";
+import { shared, createTerrainMaterial, createDepthMaterial, createWaterMaterial } from "./render/materials.js";
+import { createClouds, updateClouds } from "./render/clouds.js";
+import { Debris, Motes } from "./render/effects.js";
+import { Hand } from "./render/hand.js";
+import { createPost } from "./render/post.js";
 
-export const VERSION = "0.1.3";
+export const VERSION = "0.2.0";
 
 // ---------------------------------------------------------------- settings
-const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false }, loadSettings());
+const settings = Object.assign({ renderDistance: 6, fov: 75, sensitivity: 1, invertY: false, graphics: "fancy", dayLength: 20 }, loadSettings());
 function loadSettings() { try { return JSON.parse(localStorage.getItem("hollowstone.settings") || "{}"); } catch (e) { return {}; } }
 function storeSettings() { try { localStorage.setItem("hollowstone.settings", JSON.stringify(settings)); } catch (e) { /* private mode */ } }
+const fancy = () => settings.graphics === "fancy";
 
-// ---------------------------------------------------------------- three.js setup
+// ---------------------------------------------------------------- renderer + scene
 const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
 
-const SKY = new THREE.Color("#9ccbe3"), WATER_FOG = new THREE.Color("#1c4a73");
 const scene = new THREE.Scene();
-scene.background = SKY.clone();
-scene.fog = new THREE.Fog(SKY.clone(), 50, 90);
-// gradient sky dome that follows the camera; its horizon colour matches the fog
-const skyDome = new THREE.Mesh(
-  new THREE.SphereGeometry(500, 24, 12),
-  new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color("#3f86c4") }, horizon: { value: SKY.clone() }, bottom: { value: new THREE.Color("#c9dde6") } },
-    vertexShader: "varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
-    fragmentShader: "uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; varying vec3 vDir;" +
-      "void main(){ float h = vDir.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(horizon, bottom, clamp(-h*3.0,0.0,1.0));" +
-      " gl_FragColor = vec4(c, 1.0); }",
-  }),
-);
-skyDome.renderOrder = -1;
-scene.add(skyDome);
-const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.08, 1000);
+scene.fog = new THREE.Fog(0x9ccbe3, 50, 90);
+const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.08, 1500);
 camera.rotation.order = "YXZ";
+scene.add(camera);
+
+const skyDome = createSkyDome();
+scene.add(skyDome);
+const clouds = createClouds();
+scene.add(clouds);
+
+const hemi = new THREE.HemisphereLight(0xbfdcff, 0x5a4a3a, 1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -72, right: 72, top: 72, bottom: -72, near: 1, far: 420 });
+sun.shadow.bias = -0.00035;
+sun.shadow.normalBias = 0.045;
+scene.add(sun, sun.target);
 
 const atlasCanvas = buildAtlas();
 const atlas = new THREE.CanvasTexture(atlasCanvas);
@@ -51,18 +63,49 @@ atlas.minFilter = THREE.NearestFilter;
 atlas.generateMipmaps = false;
 atlas.colorSpace = THREE.SRGBColorSpace;
 
-const solidMat = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, alphaTest: 0.5 });
-const waterMat = new THREE.MeshBasicMaterial({
-  map: atlas, vertexColors: true, transparent: true, opacity: 0.74, depthWrite: false, side: THREE.DoubleSide,
-});
+const terrainMat = createTerrainMaterial(atlas);
+const depthMat = createDepthMaterial(atlas);
+const waterMat = createWaterMaterial(atlas);
 
-// block selection outline
 const outline = new THREE.LineSegments(
-  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.004, 1.004, 1.004)),
-  new THREE.LineBasicMaterial({ color: 0x0b0f12, transparent: true, opacity: 0.55 }),
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.006, 1.006, 1.006)),
+  new THREE.LineBasicMaterial({ color: 0x0b0f12, transparent: true, opacity: 0.6 }),
 );
 outline.visible = false;
 scene.add(outline);
+
+const post = createPost(renderer, scene, camera);
+const debris = new Debris(scene);
+const motes = new Motes(scene);
+const hand = new Hand(camera, atlas);
+hand.group.visible = false;
+
+// ---------------------------------------------------------------- mesh worker pool
+function createPool() {
+  if (typeof Worker === "undefined") return null;
+  const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+  const workers = [], jobs = new Map();
+  let nextId = 0;
+  try {
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(new URL("./mesh.worker.js", import.meta.url), { type: "module" });
+      w.busy = false;
+      w.onmessage = (e) => { w.busy = false; const done = jobs.get(e.data.id); jobs.delete(e.data.id); if (done) done(e.data.mesh); };
+      w.onerror = (e) => console.error("mesh worker error", e.message);
+      workers.push(w);
+    }
+  } catch (e) { return null; }
+  return {
+    idle: () => workers.some((w) => !w.busy),
+    run(pad, top) {
+      const w = workers.find((x) => !x.busy);
+      w.busy = true;
+      const id = nextId++;
+      return new Promise((resolve) => { jobs.set(id, resolve); w.postMessage({ id, pad, top }, [pad.buffer, top.buffer]); });
+    },
+  };
+}
+const pool = createPool();
 
 // ---------------------------------------------------------------- state
 let world = null, player = null, meta = null;
@@ -73,7 +116,11 @@ const keys = new Set();
 let target = null;
 let breakCooldown = 0, placeCooldown = 0, mouseL = false, mouseR = false;
 let lastSpace = 0, showDebug = false, saveTimer = 0;
-let fps = 0, frames = 0, fpsTime = 0;
+let fps = 0, frames = 0, fpsTime = 0, elapsed = 0;
+let timeOfDay = 0.3;
+let bobPhase = 0, bobAmt = 0, fovKick = 0;
+const sky = {};
+const titleCam = { angle: 0, center: [0, 60, 0], y: 90 };
 
 const $ = (id) => document.getElementById(id);
 
@@ -81,43 +128,58 @@ const $ = (id) => document.getElementById(id);
 function makeGeometry(d) {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(d.positions, 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(d.normals, 3));
   g.setAttribute("uv", new THREE.BufferAttribute(d.uvs, 2));
   g.setAttribute("color", new THREE.BufferAttribute(d.colors, 3));
+  g.setAttribute("aBlock", new THREE.BufferAttribute(d.block, 3));
+  g.setAttribute("aWind", new THREE.BufferAttribute(d.wind, 1));
   g.setIndex(new THREE.BufferAttribute(d.indices, 1));
   g.computeBoundingSphere();
   return g;
 }
 
+function disposeGroup(g) { for (const m of g.children) m.geometry.dispose(); scene.remove(g); }
+
 function onMesh(c, data) {
-  const k = c.cx + "," + c.cz;
+  const k = chunkKey(c.cx, c.cz);
   const old = chunkMeshes.get(k);
-  if (old) { for (const m of old.children) m.geometry.dispose(); scene.remove(old); }
+  if (old) disposeGroup(old);
   const group = new THREE.Group();
   group.position.set(c.cx * CX, 0, c.cz * CZ);
-  if (data.solid.vertexCount) group.add(new THREE.Mesh(makeGeometry(data.solid), solidMat));
+  if (data.solid.vertexCount) {
+    const m = new THREE.Mesh(makeGeometry(data.solid), terrainMat);
+    m.castShadow = true; m.receiveShadow = true; m.customDepthMaterial = depthMat;
+    group.add(m);
+  }
   if (data.water.vertexCount) { const w = new THREE.Mesh(makeGeometry(data.water), waterMat); w.renderOrder = 1; group.add(w); }
   scene.add(group);
   chunkMeshes.set(k, group);
 }
 
 function onUnload(c) {
-  const k = c.cx + "," + c.cz;
+  const k = chunkKey(c.cx, c.cz);
   const g = chunkMeshes.get(k);
-  if (g) { for (const m of g.children) m.geometry.dispose(); scene.remove(g); chunkMeshes.delete(k); }
+  if (g) { disposeGroup(g); chunkMeshes.delete(k); }
 }
 
-function clearMeshes() {
-  for (const g of chunkMeshes.values()) { for (const m of g.children) m.geometry.dispose(); scene.remove(g); }
-  chunkMeshes.clear();
+function clearMeshes() { for (const g of chunkMeshes.values()) disposeGroup(g); chunkMeshes.clear(); }
+
+function columnTop(wx, wz) {
+  const cx = Math.floor(wx / CX), cz = Math.floor(wz / CZ);
+  const c = world && world.chunk(cx, cz);
+  return c ? c.top[(wz - cz * CZ) * CX + (wx - cx * CX)] : 0;
 }
 
 // ---------------------------------------------------------------- HUD
 const icons = {};
 function icon(id) { return icons[id] || (icons[id] = blockIcon(atlasCanvas, id)); }
+const palettes = {};
+function palette(id) { return palettes[id] || (palettes[id] = tilePalette(atlasCanvas, BLOCKS[id].tiles[1])); }
 
 function renderHotbar() {
   $("hotbar").innerHTML = hotbar.map((id, i) =>
     `<div class="slot${i === slot ? " active" : ""}" data-i="${i}"><img src="${icon(id)}" alt="${BLOCKS[id].name}"><span>${i + 1}</span></div>`).join("");
+  hand.setBlock(hotbar[slot]);
 }
 
 let toastT = 0;
@@ -146,10 +208,10 @@ function updateDebug() {
   const col = world.gen.column(Math.floor(x), Math.floor(z));
   $("debug").hidden = false;
   $("debug").textContent =
-    `Hollowstone ${VERSION}  ${fps} fps\n` +
+    `Hollowstone ${VERSION}  ${fps} fps  ${settings.graphics}\n` +
     `XYZ ${x.toFixed(1)} / ${y.toFixed(1)} / ${z.toFixed(1)}\n` +
     `Chunk ${Math.floor(x / CX)}, ${Math.floor(z / CZ)}   Biome ${BIOME_NAMES[col.biome]}\n` +
-    `Chunks ${world.chunks.size} loaded, ${chunkMeshes.size} meshed\n` +
+    `Time ${clockString(timeOfDay)}   Chunks ${world.chunks.size} loaded, ${chunkMeshes.size} meshed\n` +
     `Seed ${world.seed}   ${player.flying ? "Flying" : player.onGround ? "Grounded" : "Airborne"}\n` +
     (target ? `Looking at ${BLOCKS[target.id].name} (${target.pos.join(", ")})` : "");
 }
@@ -158,6 +220,7 @@ function updateDebug() {
 function show(id) {
   for (const s of ["title", "loading", "pause", "picker"]) $(s).hidden = s !== id;
   $("hud").hidden = !(id === null || id === "picker");
+  hand.group.visible = id === null || id === "picker";
 }
 
 async function renderWorldList() {
@@ -171,6 +234,16 @@ async function renderWorldList() {
 
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 
+function startTitleDemo() {
+  clearMeshes();
+  world = new World(seedFromString("hollowstone-title"));
+  world.setMeshPool(pool);
+  const sp = world.findSpawn();
+  titleCam.center = sp; titleCam.angle = 0.6; titleCam.y = sp[1] + 34;
+  player = null;
+  timeOfDay = 0.71;
+}
+
 async function startWorld(m) {
   meta = m;
   show("loading");
@@ -179,23 +252,23 @@ async function startWorld(m) {
   clearMeshes();
   const edits = await Save.loadEdits(m.id);
   world = new World(seedFromString(m.seed), edits);
+  world.setMeshPool(pool);
   player = new Player(world);
   if (m.player) {
     player.pos = m.player.pos.slice(); player.yaw = m.player.yaw; player.pitch = m.player.pitch; player.flying = !!m.player.flying;
   } else {
     player.pos = world.findSpawn();
   }
-  if (m.hotbar && m.hotbar.length === 9) hotbar = m.hotbar.slice();
+  timeOfDay = typeof m.time === "number" ? m.time : 0.3;
+  if (m.hotbar && m.hotbar.length === 9) hotbar = m.hotbar.filter((id) => BLOCKS[id]).concat(HOTBAR).slice(0, 9);
   renderHotbar();
   camera.fov = settings.fov; camera.updateProjectionMatrix();
-  applyFog(false);
 
-  // pre-load the area around the player before letting them move
   const pcx = Math.floor(player.pos[0] / CX), pcz = Math.floor(player.pos[2] / CZ);
   const need = Math.min(2, settings.renderDistance);
   await new Promise((resolve) => {
     const step = () => {
-      world.update(pcx, pcz, need, 40, onMesh, onUnload);
+      world.update(pcx, pcz, need, 30, onMesh, onUnload);
       const left = world.pendingAround(pcx, pcz, need);
       const total = (need * 2 + 1) ** 2;
       $("loading-bar").style.width = Math.round(100 * (1 - left / total)) + "%";
@@ -203,7 +276,6 @@ async function startWorld(m) {
     };
     step();
   });
-  // never spawn inside blocks (e.g. a tree on a new world)
   while (player.intersectsSolid(...player.pos) && player.pos[1] < H) player.pos[1] += 1;
 
   m.lastPlayed = Date.now();
@@ -213,9 +285,10 @@ async function startWorld(m) {
 }
 
 async function saveNow() {
-  if (!world || !meta) return;
+  if (!world || !meta || !player) return;
   meta.player = { pos: player.pos.slice(), yaw: player.yaw, pitch: player.pitch, flying: player.flying };
   meta.hotbar = hotbar.slice();
+  meta.time = timeOfDay;
   meta.lastPlayed = Date.now();
   try { await Save.saveEdits(meta.id, world); await Save.saveWorldMeta(meta); } catch (e) { console.warn("Save failed", e); }
 }
@@ -224,28 +297,26 @@ function lockPointer() {
   try { const r = canvas.requestPointerLock?.(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* needs a click first */ }
 }
 
-function resume() {
-  show(null);
-  state = "playing";
-  lockPointer();
-}
+function resume() { show(null); state = "playing"; lockPointer(); }
 
 function pause() {
   if (state !== "playing") return;
   state = "paused";
   mouseL = mouseR = false;
   keys.clear();
+  $("clock").textContent = clockString(timeOfDay);
+  $("set-time").value = Math.round(timeOfDay * 24 * 4) / 4;
   show("pause");
   saveNow();
 }
 
 async function quitToTitle() {
   await saveNow();
-  clearMeshes();
-  world = null; player = null; meta = null;
+  meta = null;
   outline.visible = false;
   state = "title";
   show("title");
+  startTitleDemo();
   renderWorldList();
 }
 
@@ -253,7 +324,6 @@ async function quitToTitle() {
 document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement !== canvas && state === "playing") pause();
 });
-
 canvas.addEventListener("click", () => { if (state === "playing" && document.pointerLockElement !== canvas) lockPointer(); });
 
 document.addEventListener("mousemove", (e) => {
@@ -263,7 +333,6 @@ document.addEventListener("mousemove", (e) => {
   player.pitch -= e.movementY * s * (settings.invertY ? -1 : 1);
   player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
 });
-
 document.addEventListener("mousedown", (e) => {
   if (state !== "playing" || document.pointerLockElement !== canvas) return;
   if (e.button === 0) { mouseL = true; breakCooldown = 0; }
@@ -272,13 +341,10 @@ document.addEventListener("mousedown", (e) => {
 });
 document.addEventListener("mouseup", (e) => { if (e.button === 0) mouseL = false; if (e.button === 2) mouseR = false; });
 document.addEventListener("contextmenu", (e) => { if (state === "playing") e.preventDefault(); });
-document.addEventListener("wheel", (e) => {
-  if (state !== "playing") return;
-  selectSlot(slot + (e.deltaY > 0 ? 1 : -1));
-}, { passive: true });
+document.addEventListener("wheel", (e) => { if (state === "playing") selectSlot(slot + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
 
 document.addEventListener("keydown", (e) => {
-  if (state === "picker" && (e.code === "KeyE" || e.code === "Escape")) { closePicker(); e.preventDefault(); return; }
+  if (state === "picker" && (e.code === "KeyE" || e.code === "Escape")) { resume(); e.preventDefault(); return; }
   if (state !== "playing") return;
   keys.add(e.code);
   if (e.code.startsWith("Digit") && e.code !== "Digit0") selectSlot(Number(e.code.slice(5)) - 1);
@@ -290,6 +356,7 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "KeyF") { player.flying = !player.flying; player.vel[1] = 0; toast(player.flying ? "Flying" : "Walking"); }
   if (e.code === "F3") { showDebug = !showDebug; e.preventDefault(); }
   if (e.code === "KeyE") { openPicker(); e.preventDefault(); }
+  if (e.code === "KeyG") { settings.graphics = fancy() ? "fast" : "fancy"; storeSettings(); syncGraphics(); toast("Graphics: " + settings.graphics); }
   if (["Space", "F3", "Tab"].includes(e.code)) e.preventDefault();
 });
 document.addEventListener("keyup", (e) => keys.delete(e.code));
@@ -308,17 +375,23 @@ function openPicker() {
   show("picker");
   document.exitPointerLock?.();
 }
-function closePicker() { resume(); }
 
 // ---------------------------------------------------------------- world interaction
+function lightAt(x, y, z) {
+  return y > columnTop(x, z) ? 0.35 + 0.65 * sky.day : 0.3;
+}
+
 function tryBreak() {
   if (!target) return;
   const def = BLOCKS[target.id];
   if (!def.breakable) { toast(def.name + " can't be broken"); return; }
   const [x, y, z] = target.pos;
-  // let water flow into the gap if it borders water (simple, one step)
   const nearWater = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]].some(([dx, dy, dz]) => world.getBlock(x + dx, y + dy, z + dz) === B.WATER);
   world.setBlock(x, y, z, nearWater ? B.WATER : B.AIR);
+  const above = world.getBlock(x, y + 1, z);
+  if (KIND[above] === 4) world.setBlock(x, y + 1, z, B.AIR); // plants need something to stand on
+  debris.burst(x, y, z, palette(target.id), GLOW[target.id] ? 2.5 : lightAt(x, y + 1, z), def.kind === "cross" ? 10 : 22);
+  hand.doSwing();
 }
 
 function tryPlace() {
@@ -326,86 +399,156 @@ function tryPlace() {
   const [x, y, z] = target.pos.map((v, i) => v + target.normal[i]);
   if (y < 0 || y >= H) return;
   const existing = world.getBlock(x, y, z);
-  if (existing !== B.AIR && existing !== B.WATER) return;
+  if (existing !== B.AIR && existing !== B.WATER && KIND[existing] !== 4) return;
   const id = hotbar[slot];
-  // don't place a solid block inside the player
+  if (KIND[id] === 4 && KIND[world.getBlock(x, y - 1, z)] !== 1) return; // plants go on solid ground
   const p = player.pos, hw = PLAYER_W / 2;
   const overlaps = x < p[0] + hw && x + 1 > p[0] - hw && z < p[2] + hw && z + 1 > p[2] - hw && y < p[1] + PLAYER_H && y + 1 > p[1];
-  if (overlaps && KIND[id] !== 3) return;
+  if (overlaps && (KIND[id] === 1 || KIND[id] === 2)) return;
   world.setBlock(x, y, z, id);
+  hand.doSwing();
 }
 
-// ---------------------------------------------------------------- fog / underwater
-let underwater = null;
-function applyFog(isUnder) {
-  if (underwater === isUnder && (isUnder || scene.fog.far === fogFar())) return;
-  underwater = isUnder;
-  if (isUnder) {
-    scene.fog.color.copy(WATER_FOG); scene.background.copy(WATER_FOG);
-    scene.fog.near = 0.5; scene.fog.far = 22;
-  } else {
-    scene.fog.color.copy(SKY); scene.background.copy(SKY);
-    scene.fog.near = fogFar() * 0.55; scene.fog.far = fogFar();
-  }
-  $("water-tint").hidden = !isUnder;
-  skyDome.visible = !isUnder;
-}
+// ---------------------------------------------------------------- environment
 const fogFar = () => settings.renderDistance * 16 * 0.92;
+const WATER_FOG = new THREE.Color("#0d3a5c");
+let underwater = false;
+
+function applyEnvironment(eye) {
+  skyState(timeOfDay, sky);
+  updateSkyDome(skyDome, sky, elapsed);
+  skyDome.position.copy(eye);
+
+  underwater = !!(player && player.headInWater);
+  if (underwater) {
+    scene.fog.color.copy(WATER_FOG).multiplyScalar(0.25 + 0.75 * sky.day);
+    scene.fog.near = 0.5; scene.fog.far = 24;
+  } else {
+    scene.fog.color.copy(sky.horizon);
+    scene.fog.near = fogFar() * 0.5; scene.fog.far = fogFar();
+  }
+  skyDome.visible = !underwater;
+  $("water-tint").hidden = !underwater;
+
+  hemi.color.copy(sky.hemiSky); hemi.groundColor.copy(sky.hemiGround); hemi.intensity = sky.hemiIntensity;
+  sun.color.copy(sky.lightColor); sun.intensity = sky.lightIntensity;
+  const snap = 4;
+  const cx = Math.round(eye.x / snap) * snap, cy = Math.round(eye.y / snap) * snap, cz = Math.round(eye.z / snap) * snap;
+  sun.target.position.set(cx, cy, cz);
+  sun.position.set(cx, cy, cz).addScaledVector(sky.lightDir, 200);
+  sun.target.updateMatrixWorld();
+
+  const wu = waterMat.uniforms;
+  wu.uTime.value = elapsed; wu.uSunDir.value.copy(sky.lightDir); wu.uSunColor.value.copy(sky.lightColor);
+  wu.uSunI.value = Math.min(1, sky.lightIntensity / 2.5); wu.uTop.value.copy(sky.top); wu.uHorizon.value.copy(sky.horizon); wu.uDay.value = sky.day;
+
+  clouds.visible = fancy();
+  if (clouds.visible) updateClouds(clouds, eye, sky, elapsed);
+  shared.uTime.value = elapsed;
+}
+
+function syncGraphics() {
+  sun.castShadow = fancy();
+  renderer.shadowMap.needsUpdate = true;
+  $("set-gfx").value = settings.graphics;
+}
 
 // ---------------------------------------------------------------- main loop
-let last = performance.now();
+let last = performance.now(), shadowTick = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  elapsed += dt;
   frames++; fpsTime += dt;
   if (fpsTime >= 0.5) { fps = Math.round(frames / fpsTime); frames = 0; fpsTime = 0; }
 
+  let moteMode = null, handLight = 1, moveSpeed = 0;
+
+  if (world && !player && (state === "title" || state === "loading")) {
+    // cinematic flyover behind the title screen
+    titleCam.angle += dt * 0.035;
+    timeOfDay = 0.69 + Math.sin(elapsed * 0.02) * 0.05;
+    const r = 58, c = titleCam.center;
+    const px = c[0] + Math.cos(titleCam.angle) * r, pz = c[2] + Math.sin(titleCam.angle) * r;
+    const groundY = world.gen.column(Math.floor(px), Math.floor(pz)).h;
+    titleCam.y += (Math.max(groundY + 22, c[1] + 26) - titleCam.y) * Math.min(1, dt * 0.5);
+    camera.position.set(px, titleCam.y, pz);
+    camera.lookAt(c[0] + Math.cos(titleCam.angle + 1.6) * 30, c[1] + 4, c[2] + Math.sin(titleCam.angle + 1.6) * 30);
+    world.update(Math.floor(px / CX), Math.floor(pz / CZ), Math.min(settings.renderDistance, 7), 5, onMesh, onUnload);
+    if (camera.fov !== 60) { camera.fov = 60; camera.updateProjectionMatrix(); }
+  }
+
   if (world && player && (state === "playing" || state === "paused" || state === "picker")) {
+    const sprintKey = keys.has("ControlLeft") || keys.has("KeyR");
     if (state === "playing") {
       const input = {
         forward: (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) - (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0),
         right: (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0),
         jump: keys.has("Space"),
         down: keys.has("ShiftLeft") || keys.has("ShiftRight"),
-        sprint: keys.has("ControlLeft") || keys.has("KeyR"),
+        sprint: sprintKey,
       };
       player.update(dt, input);
+      timeOfDay = (timeOfDay + dt / (settings.dayLength * 60)) % 1;
     }
+    moveSpeed = Math.hypot(player.vel[0], player.vel[2]);
 
+    // camera: eye + view bob + sprint FOV kick
+    const walking = player.onGround && !player.flying && moveSpeed > 0.5;
+    bobAmt += ((walking ? 1 : 0) - bobAmt) * Math.min(1, dt * 8);
+    bobPhase += dt * moveSpeed * 2.1;
     const [ex, ey, ez] = player.eye();
-    camera.position.set(ex, ey, ez);
-    skyDome.position.set(ex, ey, ez);
-    camera.rotation.set(player.pitch, player.yaw, 0);
+    const side = Math.sin(bobPhase) * 0.035 * bobAmt;
+    camera.position.set(ex + Math.cos(player.yaw) * side, ey + Math.abs(Math.sin(bobPhase)) * 0.055 * bobAmt, ez - Math.sin(player.yaw) * side);
+    camera.rotation.set(player.pitch, player.yaw, Math.sin(bobPhase) * 0.006 * bobAmt);
+    const kick = (sprintKey && moveSpeed > 4.6 ? 9 : 0) + (player.flying && moveSpeed > 12 ? 7 : 0);
+    fovKick += (kick - fovKick) * Math.min(1, dt * 6);
+    const fov = settings.fov + fovKick;
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
 
-    // stream chunks around the player
-    world.update(Math.floor(player.pos[0] / CX), Math.floor(player.pos[2] / CZ), settings.renderDistance, 7, onMesh, onUnload);
+    world.update(Math.floor(player.pos[0] / CX), Math.floor(player.pos[2] / CZ), settings.renderDistance, 6, onMesh, onUnload);
 
-    // targeting
     target = raycast((x, y, z) => world.getBlock(x, y, z), player.eye(), player.lookDir(), 6);
     if (target && state === "playing") {
       outline.visible = true;
+      const plant = KIND[target.id] === 4;
+      outline.scale.set(plant ? 0.78 : 1, 1, plant ? 0.78 : 1);
       outline.position.set(target.pos[0] + 0.5, target.pos[1] + 0.5, target.pos[2] + 0.5);
     } else outline.visible = false;
 
     if (state === "playing") {
       breakCooldown -= dt; placeCooldown -= dt;
-      if (mouseL && breakCooldown <= 0) { tryBreak(); breakCooldown = 0.25; }
-      if (mouseR && placeCooldown <= 0) { tryPlace(); placeCooldown = 0.25; }
+      if (mouseL && breakCooldown <= 0) { tryBreak(); breakCooldown = 0.22; }
+      if (mouseR && placeCooldown <= 0) { tryPlace(); placeCooldown = 0.22; }
     }
 
-    applyFog(player.headInWater);
+    // ambience: fireflies at night on the surface, drifting light in the hollows
+    const fx = Math.floor(player.pos[0]), fz = Math.floor(player.pos[2]), fy = Math.floor(player.pos[1] + 1.6);
+    const underground = fy < columnTop(fx, fz) - 1 && fy < 56;
+    handLight = underground ? 0.32 : 0.3 + 0.7 * Math.max(sky.day === undefined ? 1 : sky.day, 0.25);
+    const biome = world.gen.column(fx, fz).biome;
+    if (underground && fy < 46) moteMode = "hollow";
+    else if (!underground && (sky.night || 0) > 0.55 && (biome === 2 || biome === 3)) moteMode = "firefly";
 
     saveTimer += dt;
     if (saveTimer > 8) { saveTimer = 0; saveNow(); }
     updateDebug();
   }
-  renderer.render(scene, camera);
+
+  applyEnvironment(camera.position);
+  debris.update(dt, (x, y, z) => world && KIND[world.getBlock(x, y, z)] === 1);
+  motes.update(dt, elapsed, [camera.position.x, camera.position.y, camera.position.z], fancy() ? moteMode : null, window.innerHeight * renderer.getPixelRatio());
+  hand.update(dt, moveSpeed, handLight);
+
+  if (fancy() && (shadowTick++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
+  if (fancy()) post.render(); else renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
 
 window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
+  post.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
@@ -423,14 +566,12 @@ $("world-list").addEventListener("click", async (e) => {
     else { del.dataset.confirm = "1"; del.textContent = "Delete?"; setTimeout(() => { if (del.isConnected) { delete del.dataset.confirm; del.textContent = "✕"; } }, 2500); }
   }
 });
-
 $("create-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = $("new-name").value.trim() || "New World";
   const seed = $("new-seed").value.trim() || String(Math.floor(Math.random() * 2 ** 31));
   startWorld({ id: Save.newWorldId(), name, seed, created: Date.now() });
 });
-
 $("resume").addEventListener("click", resume);
 $("quit").addEventListener("click", quitToTitle);
 $("picker-grid").addEventListener("click", (e) => {
@@ -438,9 +579,9 @@ $("picker-grid").addEventListener("click", (e) => {
   if (!b) return;
   hotbar[slot] = Number(b.dataset.id);
   renderHotbar();
-  closePicker();
+  resume();
 });
-$("picker-close").addEventListener("click", closePicker);
+$("picker-close").addEventListener("click", resume);
 
 function bindRange(id, keyName, fmt, onChange) {
   const el = $(id), out = $(id + "-val");
@@ -453,14 +594,21 @@ function bindRange(id, keyName, fmt, onChange) {
     onChange && onChange();
   });
 }
-bindRange("set-rd", "renderDistance", (v) => v + " chunks", () => applyFog(underwater));
-bindRange("set-fov", "fov", (v) => v + "°", () => { camera.fov = settings.fov; camera.updateProjectionMatrix(); });
+bindRange("set-rd", "renderDistance", (v) => v + " chunks");
+bindRange("set-fov", "fov", (v) => v + "°");
 bindRange("set-sens", "sensitivity", (v) => v.toFixed(1) + "×");
+bindRange("set-day", "dayLength", (v) => v + " min");
+$("set-gfx").addEventListener("change", (e) => { settings.graphics = e.target.value; storeSettings(); syncGraphics(); });
+$("set-time").addEventListener("input", (e) => { timeOfDay = Number(e.target.value) / 24; $("clock").textContent = clockString(timeOfDay); });
 
 $("version").textContent = "v" + VERSION;
+syncGraphics();
 show("title");
+startTitleDemo();
 renderWorldList();
 
-// Debug handle for testing from the console.
-window.__hs = { get world() { return world; }, get player() { return player; }, scene, camera, renderer, settings, VERSION,
-  teleport(x, y, z) { if (player) { player.pos = [x, y, z]; player.vel = [0, 0, 0]; } } };
+window.__hs = {
+  get world() { return world; }, get player() { return player; }, scene, camera, renderer, settings, VERSION,
+  get time() { return timeOfDay; }, set time(v) { timeOfDay = v; },
+  teleport(x, y, z) { if (player) { player.pos = [x, y, z]; player.vel = [0, 0, 0]; } },
+};

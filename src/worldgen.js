@@ -112,6 +112,28 @@ export function createGenerator(seed) {
       }
     }
 
+    // flora on the surface, glowcaps on hollow floors
+    for (let z = 0; z < CZ; z++) {
+      for (let x = 0; x < CX; x++) {
+        const wx = ox + x, wz = oz + z;
+        const { h, biome } = cols[z * CX + x];
+        if (h + 1 < H && blocks[idx(x, h + 1, z)] === B.AIR) {
+          const ground = blocks[idx(x, h, z)], r = hash2(wx, wz, 31);
+          let plant = 0;
+          if (ground === B.TURF) {
+            if (biome === BIOME.DUSKWOOD) plant = r < 0.012 ? B.GLOWCAP : r < 0.09 ? B.BELLGRASS : 0;
+            else plant = r < 0.018 ? B.EMBERBLOOM : r < 0.2 ? B.BELLGRASS : 0;
+          } else if (ground === B.FROSTTURF) plant = r < 0.035 ? B.FROSTBELL : r < 0.07 ? B.BELLGRASS : 0;
+          if (plant) blocks[idx(x, h + 1, z)] = plant;
+        }
+        for (let y = 4; y < Math.min(h - 3, 44); y++) {
+          const i = idx(x, y, z);
+          if (blocks[i] === B.AIR && (blocks[i - CX * CZ] === B.SLATE || blocks[i - CX * CZ] === B.BASALT) &&
+            hash3(wx, y, wz, 41) < 0.04) blocks[i] = B.GLOWCAP;
+        }
+      }
+    }
+
     placeTrees(blocks, cx, cz);
     return blocks;
   }

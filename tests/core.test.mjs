@@ -72,7 +72,10 @@ test("mesh is valid, faces wind outward, timing is sane", () => {
   assert.equal(s.uvs.length, s.vertexCount * 2);
   assert.equal(s.indices.length, (s.vertexCount / 4) * 6);
   for (let i = 0; i < s.indices.length; i++) assert.ok(s.indices[i] < s.vertexCount);
-  for (const c of s.colors) assert.ok(c > 0 && c <= 1.06, "colour " + c);
+  for (const c of s.colors) assert.ok(c > 0 && c <= 1, "colour " + c);
+  assert.equal(s.normals.length, s.vertexCount * 3);
+  assert.equal(s.block.length, s.vertexCount * 3);
+  assert.equal(s.wind.length, s.vertexCount);
   for (const u of s.uvs) assert.ok(u >= 0 && u <= 1);
   // winding check: triangle normal must point away from its block centre
   let bad = 0;
@@ -84,7 +87,8 @@ test("mesh is valid, faces wind outward, timing is sane", () => {
     // face centre lies on block boundary; block centre is -n*0.5 from it, so n must align with the axis of the face
     const ax = Math.abs(n[0]) > 0 ? 0 : Math.abs(n[1]) > 0 ? 1 : 2;
     const frac = cen[ax] - Math.floor(cen[ax]);
-    if (frac > 0.01 && frac < 0.99) bad++; // off-grid: shouldn't happen for solid
+    const isPlant = Math.abs(n[0]) > 1e-6 && Math.abs(n[2]) > 1e-6; // diagonal plant quads
+    if (!isPlant && frac > 0.01 && frac < 0.99) bad++; // off-grid: shouldn't happen for cubes
   }
   assert.equal(bad, 0);
   console.log(`      solid verts=${s.vertexCount} water verts=${m.water.vertexCount} mesh=${ms.toFixed(1)}ms`);
@@ -114,12 +118,26 @@ test("lumen lights its surroundings", () => {
   for (let v = 0; v < s.vertexCount; v++) {
     const [x, y, z] = [s.positions[v * 3], s.positions[v * 3 + 1], s.positions[v * 3 + 2]];
     if (y !== 41) continue;
-    const g = s.colors[v * 3 + 1], d = Math.hypot(x - 5.5, z - 5.5);
+    const g = s.block[v * 3 + 1], d = Math.hypot(x - 5.5, z - 5.5);
     if (d < 2.5) near = Math.max(near, g);
     if (d > 6.5) far = Math.min(far, g);
   }
-  assert.ok(near > 0.6, "near " + near);
-  assert.ok(far < near, "far " + far);
+  assert.ok(near > 0.5, "near " + near);
+  assert.ok(far < near * 0.5, "far " + far);
+});
+
+test("plants grow and mesh as crossed quads", () => {
+  let plants = 0;
+  for (let cz = -6; cz <= 6; cz += 2) for (let cx = -6; cx <= 6; cx += 2) {
+    const blk = gen.generate(cx, cz);
+    for (const b of blk) if (KIND[b] === 4) plants++;
+  }
+  assert.ok(plants > 50, "plants " + plants);
+  const pad = new Uint8Array(PX * PZ * H), top = new Uint8Array(PX * PZ);
+  pad[pidx(3, 50, 3)] = B.BELLGRASS;
+  const s = meshChunk(pad, top).solid;
+  assert.equal(s.vertexCount, 16);
+  assert.ok(s.wind.some((w) => w === 1) && s.wind.some((w) => w === 0));
 });
 
 test("generation timing", () => {

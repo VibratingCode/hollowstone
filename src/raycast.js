@@ -20,7 +20,7 @@ export function raycast(getBlock, origin, dir, maxDist) {
   while (t <= maxDist) {
     const id = getBlock(x, y, z);
     const k = KIND[id];
-    if (k === 1 || k === 2) return { pos: [x, y, z], normal, id, dist: t };
+    if (k === 1 || k === 2 || k === 4) return { pos: [x, y, z], normal, id, dist: t };
     if (tmx < tmy && tmx < tmz) { x += stepX; t = tmx; tmx += tdx; normal = [-stepX, 0, 0]; }
     else if (tmy < tmz) { y += stepY; t = tmy; tmy += tdy; normal = [0, -stepY, 0]; }
     else { z += stepZ; t = tmz; tmz += tdz; normal = [0, 0, -stepZ]; }

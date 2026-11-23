@@ -24,6 +24,10 @@ export const B = {
   FROSTTURF: 17,
   DUSKWOOD: 18,
   DUSKCANOPY: 19,
+  BELLGRASS: 20,
+  EMBERBLOOM: 21,
+  FROSTBELL: 22,
+  GLOWCAP: 23,
 };
 
 // Tile indices in the generated atlas (see textures.js for how each is painted).
@@ -32,9 +36,11 @@ export const T = {
   BARK: 6, RINGS: 7, CANOPY: 8, TIMBER: 9, RUBBLE: 10, BASALT: 11,
   EMBERORE: 12, LUMEN: 13, CLAYBRICK: 14, GLASS: 15, SNOWPACK: 16, DEEPCORE: 17,
   FROST_SIDE: 18, DUSKBARK: 19, DUSKRINGS: 20, DUSKCANOPY: 21,
+  BELLGRASS: 22, EMBERBLOOM: 23, FROSTBELL: 24, GLOWCAP: 25,
 };
 
-// kind: "solid" (opaque cube), "cutout" (alpha-tested, see-through gaps), "liquid" (translucent, not solid)
+// kind: "solid" (opaque cube), "cutout" (alpha-tested, see-through gaps), "liquid" (translucent, not solid),
+//       "cross" (plants: two crossed quads, no collision). glow: light level emitted (0 = none).
 const defs = [
   { id: B.AIR, name: "Air", kind: "air" },
   { id: B.TURF, name: "Turf", kind: "solid", tiles: [T.TURF_TOP, T.TURF_SIDE, T.LOAM] },
@@ -48,7 +54,7 @@ const defs = [
   { id: B.RUBBLE, name: "Rubble", kind: "solid", tiles: [T.RUBBLE, T.RUBBLE, T.RUBBLE] },
   { id: B.BASALT, name: "Basalt", kind: "solid", tiles: [T.BASALT, T.BASALT, T.BASALT] },
   { id: B.EMBERORE, name: "Emberore", kind: "solid", tiles: [T.EMBERORE, T.EMBERORE, T.EMBERORE] },
-  { id: B.LUMEN, name: "Lumen", kind: "solid", tiles: [T.LUMEN, T.LUMEN, T.LUMEN], glow: true },
+  { id: B.LUMEN, name: "Lumen", kind: "solid", tiles: [T.LUMEN, T.LUMEN, T.LUMEN], glow: 12 },
   { id: B.CLAYBRICK, name: "Claybrick", kind: "solid", tiles: [T.CLAYBRICK, T.CLAYBRICK, T.CLAYBRICK] },
   { id: B.GLASS, name: "Glass", kind: "cutout", tiles: [T.GLASS, T.GLASS, T.GLASS] },
   { id: B.SNOWPACK, name: "Snowpack", kind: "solid", tiles: [T.SNOWPACK, T.SNOWPACK, T.SNOWPACK] },
@@ -56,22 +62,29 @@ const defs = [
   { id: B.FROSTTURF, name: "Frostturf", kind: "solid", tiles: [T.SNOWPACK, T.FROST_SIDE, T.LOAM] },
   { id: B.DUSKWOOD, name: "Duskwood", kind: "solid", tiles: [T.DUSKRINGS, T.DUSKBARK, T.DUSKRINGS] },
   { id: B.DUSKCANOPY, name: "Duskcanopy", kind: "cutout", tiles: [T.DUSKCANOPY, T.DUSKCANOPY, T.DUSKCANOPY] },
+  { id: B.BELLGRASS, name: "Bellgrass", kind: "cross", tiles: [T.BELLGRASS, T.BELLGRASS, T.BELLGRASS] },
+  { id: B.EMBERBLOOM, name: "Emberbloom", kind: "cross", tiles: [T.EMBERBLOOM, T.EMBERBLOOM, T.EMBERBLOOM] },
+  { id: B.FROSTBELL, name: "Frostbell", kind: "cross", tiles: [T.FROSTBELL, T.FROSTBELL, T.FROSTBELL] },
+  { id: B.GLOWCAP, name: "Glowcap", kind: "cross", tiles: [T.GLOWCAP, T.GLOWCAP, T.GLOWCAP], glow: 9 },
 ];
 
 export const BLOCKS = [];
-for (const d of defs) BLOCKS[d.id] = Object.assign({ breakable: true, glow: false }, d);
+for (const d of defs) BLOCKS[d.id] = Object.assign({ breakable: true, glow: 0 }, d);
 
 // Fast lookup tables
 export const SOLID = new Uint8Array(256);      // collides with the player
 export const OPAQUE = new Uint8Array(256);     // fully hides neighbouring faces
-export const KIND = new Uint8Array(256);       // 0 air, 1 solid, 2 cutout, 3 liquid
+export const KIND = new Uint8Array(256);       // 0 air, 1 solid, 2 cutout, 3 liquid, 4 cross (plant)
+export const GLOW = new Uint8Array(256);       // emitted light level
 for (const b of BLOCKS) {
   if (!b) continue;
-  KIND[b.id] = { air: 0, solid: 1, cutout: 2, liquid: 3 }[b.kind];
+  KIND[b.id] = { air: 0, solid: 1, cutout: 2, liquid: 3, cross: 4 }[b.kind];
+  GLOW[b.id] = b.glow || 0;
   SOLID[b.id] = b.kind === "solid" || b.kind === "cutout" ? 1 : 0;
   OPAQUE[b.id] = b.kind === "solid" ? 1 : 0;
 }
 
 // Blocks the player can pick in the hotbar, in order.
 export const HOTBAR = [B.TURF, B.LOAM, B.SLATE, B.RUBBLE, B.TIMBER, B.BARKWOOD, B.CLAYBRICK, B.GLASS, B.LUMEN,
-  B.SILTSAND, B.CANOPY, B.BASALT, B.SNOWPACK, B.EMBERORE, B.DUSKWOOD, B.DUSKCANOPY];
+  B.SILTSAND, B.CANOPY, B.BASALT, B.SNOWPACK, B.EMBERORE, B.DUSKWOOD, B.DUSKCANOPY, B.FROSTTURF,
+  B.BELLGRASS, B.EMBERBLOOM, B.FROSTBELL, B.GLOWCAP];

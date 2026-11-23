@@ -8,7 +8,10 @@
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    } }
   </script>
 </head>
 <body>
@@ -19,11 +22,12 @@
     <div id="hotbar"></div>
     <div id="toast"></div>
     <pre id="debug" hidden></pre>
-    <div class="help">WASD move · Space jump (double-tap to fly) · Shift sneak/down · Ctrl sprint · LMB break · RMB place · MMB pick · E blocks · F3 debug · Esc menu</div>
+    <div class="help">WASD move · Space jump (double-tap to fly) · Shift sneak/down · Ctrl sprint · LMB break · RMB place · MMB pick · E blocks · G graphics · F3 debug · Esc menu</div>
   </div>
   <div id="water-tint" hidden></div>
 
-  <section id="title" class="overlay">
+  <section id="title" class="overlay title-overlay">
+    <div class="title-hero"><h1>Hollowstone</h1><p>Dig deep. Build high. Find the light below.</p></div>
     <div class="panel title-panel">
       <div class="logo-row"><img src="assets/logo.svg" alt="" width="56" height="56"><div><h1>Hollowstone</h1><p class="sub">An original block-building sandbox · <span id="version"></span></p></div></div>
       <h2>Your worlds</h2>
@@ -47,9 +51,14 @@
 
   <section id="pause" class="overlay" hidden>
     <div class="panel small">
-      <h1>Paused</h1>
+      <div class="pause-head"><h1>Paused</h1><span class="clock" id="clock">12:00</span></div>
       <button id="resume" class="btn primary wide">Back to the world</button>
       <div class="settings">
+        <label>Graphics
+          <select id="set-gfx"><option value="fancy">Fancy: shadows, bloom, clouds, fireflies</option><option value="fast">Fast: for older machines</option></select>
+        </label>
+        <label>Time of day <input id="set-time" type="range" min="0" max="23.75" step="0.25"></label>
+        <label>Day length <span id="set-day-val"></span><input id="set-day" type="range" min="4" max="60" step="1"></label>
         <label>Render distance <span id="set-rd-val"></span><input id="set-rd" type="range" min="2" max="12" step="1"></label>
         <label>Field of view <span id="set-fov-val"></span><input id="set-fov" type="range" min="55" max="110" step="1"></label>
         <label>Mouse sensitivity <span id="set-sens-val"></span><input id="set-sens" type="range" min="0.2" max="3" step="0.1"></label>

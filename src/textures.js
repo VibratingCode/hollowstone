@@ -192,6 +192,44 @@ const painters = {
     t.fill("#e9f0f7", 9);
     t.speck("#cfdceb", 30); t.speck("#ffffff", 14); t.speck("#bccbdc", 8);
   },
+  [T.BELLGRASS](t) {
+    // tufts of blades, transparent between
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) t.set(x, y, [0, 0, 0], 0);
+    for (let i = 0; i < 9; i++) {
+      const x0 = 1 + ((t.rand() * 14) | 0), hgt = 6 + ((t.rand() * 9) | 0), lean = (t.rand() - 0.5) * 0.5;
+      const tone = hex(t.rand() < 0.5 ? "#5aa865" : "#7cc47a");
+      for (let k = 0; k < hgt; k++) {
+        const x = Math.round(x0 + lean * k), y = 15 - k, d = (t.rand() - 0.5) * 18 + (k > hgt - 3 ? 18 : 0);
+        t.set(x, y, [clamp(tone[0] + d), clamp(tone[1] + d), clamp(tone[2] + d)]);
+      }
+    }
+  },
+  [T.EMBERBLOOM](t) {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) t.set(x, y, [0, 0, 0], 0);
+    for (let y = 7; y < S; y++) t.set(7 + (y % 5 === 0 ? 1 : 0), y, hex("#4f8f4a"));
+    t.set(5, 11, hex("#5aa865")); t.set(6, 10, hex("#5aa865")); t.set(9, 12, hex("#5aa865")); t.set(10, 11, hex("#5aa865"));
+    const petals = [[7, 3], [6, 4], [8, 4], [5, 5], [9, 5], [6, 6], [8, 6], [7, 6], [7, 4], [7, 5], [6, 5], [8, 5]];
+    for (const [x, y] of petals) t.set(x, y, hex(t.rand() < 0.5 ? "#ff7a3c" : "#e8512a"));
+    t.set(7, 5, hex("#ffd36b")); t.set(4, 4, hex("#ff9a5c")); t.set(10, 4, hex("#ff9a5c"));
+  },
+  [T.FROSTBELL](t) {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) t.set(x, y, [0, 0, 0], 0);
+    for (let y = 4; y < S; y++) t.set(8, y, hex("#5f9a86"));
+    for (let x = 5; x <= 8; x++) t.set(x, 4 + Math.abs(x - 7), hex("#5f9a86"));
+    for (const [cx, cy] of [[5, 7], [10, 6], [7, 10]]) {
+      for (const [dx, dy] of [[0, 0], [-1, 1], [0, 1], [1, 1], [-1, 2], [0, 2], [1, 2]]) t.set(cx + dx, cy + dy, hex(dy === 2 ? "#a9d6ff" : "#d8ecff"));
+    }
+  },
+  [T.GLOWCAP](t) {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) t.set(x, y, [0, 0, 0], 0);
+    for (let y = 9; y < S; y++) for (let x = 7; x <= 8; x++) t.set(x, y, hex("#cfe6dc"));
+    for (let y = 4; y < 10; y++) for (let x = 3; x <= 12; x++) {
+      const d = ((x - 7.5) / 5) ** 2 + ((y - 9) / 5) ** 2;
+      if (d < 1 && y <= 9) t.set(x, y, hex(d < 0.35 ? "#b8fff2" : "#3fd6c4"));
+    }
+    t.set(5, 7, hex("#ffffff")); t.set(9, 6, hex("#ffffff")); t.set(11, 8, hex("#e0fffa"));
+    t.set(12, 13, hex("#3fd6c4")); t.set(12, 12, hex("#b8fff2")); t.set(3, 14, hex("#3fd6c4"));
+  },
   [T.DEEPCORE](t) {
     t.fill("#2a2433", 14);
     t.speck("#4b3f5c", 20); t.speck("#14111a", 22);
@@ -212,6 +250,15 @@ export function buildAtlas() {
   return canvas;
 }
 
+// A few representative opaque colours from a tile (for break particles).
+export function tilePalette(atlas, tile, n = 8) {
+  const ctx = atlas.getContext("2d");
+  const x0 = (tile % ATLAS_COLS) * S, y0 = ((tile / ATLAS_COLS) | 0) * S;
+  const d = ctx.getImageData(x0, y0, S, S).data, out = [];
+  for (let i = 0; i < S * S && out.length < n * 4; i += 7) if (d[i * 4 + 3] > 200) out.push([d[i * 4] / 255, d[i * 4 + 1] / 255, d[i * 4 + 2] / 255]);
+  return out.length ? out : [[0.5, 0.5, 0.5]];
+}
+
 // Isometric block icon for the hotbar, drawn from the block's atlas tiles.
 export function blockIcon(atlas, id, size = 48) {
   const def = BLOCKS[id];
@@ -220,6 +267,11 @@ export function blockIcon(atlas, id, size = 48) {
   const ctx = c.getContext("2d");
   ctx.imageSmoothingEnabled = false;
   const tile = (i) => [(i % ATLAS_COLS) * S, ((i / ATLAS_COLS) | 0) * S];
+  if (def.kind === "cross") {
+    const [tx, ty] = tile(def.tiles[0]);
+    ctx.drawImage(atlas, tx, ty, S, S, size * 0.1, size * 0.1, size * 0.8, size * 0.8);
+    return c.toDataURL();
+  }
   const [top, side] = [tile(def.tiles[0]), tile(def.tiles[1])];
   const w = size / 2, hq = size / 4;
   // top face

@@ -80,7 +80,11 @@ export class World {
   }
 
   buildMesh(c) {
-    const pad = this._pad, top = this._top;
+    const { pad, top } = this.buildPad(c, this._pad, this._top);
+    return meshChunk(pad, top);
+  }
+
+  buildPad(c, pad = new Uint8Array(PX * PZ * H), top = new Uint8Array(PX * PZ)) {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       const n = this.chunk(c.cx + dx, c.cz + dz);
       const x0 = dx < 0 ? -PAD : dx > 0 ? CX : 0, x1 = dx < 0 ? -1 : dx > 0 ? CX + PAD - 1 : CX - 1;
@@ -91,8 +95,11 @@ export class World {
         for (let y = 0; y < H; y++) pad[pidx(x, y, z)] = n.blocks[idx(lx, y, lz)];
       }
     }
-    return meshChunk(pad, top);
+    return { pad, top };
   }
+
+  /** Use a worker pool for meshing: pool.run(pad, top) -> Promise<mesh>, pool.idle() -> bool */
+  setMeshPool(pool) { this.pool = pool; }
 
   /**
    * Stream the world around (pcx, pcz). Generates missing chunks and meshes dirty ones,
@@ -110,9 +117,20 @@ export class World {
     for (const [dx, dz] of this._order(radius)) {
       if (performance.now() - t0 > budgetMs && meshed > 0) break;
       const c = this.chunk(pcx + dx, pcz + dz);
-      if (!c || !c.dirty || !this.neighboursLoaded(c.cx, c.cz)) continue;
+      if (!c || !c.dirty || c.meshing || !this.neighboursLoaded(c.cx, c.cz)) continue;
       c.dirty = false;
-      onMesh(c, this.buildMesh(c));
+      if (this.pool) {
+        if (!this.pool.idle()) break;
+        c.meshing = true;
+        const { pad, top } = this.buildPad(c);
+        const k = key(c.cx, c.cz);
+        this.pool.run(pad, top).then((mesh) => {
+          c.meshing = false;
+          if (this.chunks.get(k) === c) onMesh(c, mesh);
+        });
+      } else {
+        onMesh(c, this.buildMesh(c));
+      }
       meshed++;
     }
     // unload far chunks (their edits stay in this.edits)
@@ -129,7 +147,7 @@ export class World {
     let n = 0;
     for (const [dx, dz] of this._order(radius)) {
       const c = this.chunk(pcx + dx, pcz + dz);
-      if (!c || c.dirty) n++;
+      if (!c || c.dirty || c.meshing) n++;
     }
     return n;
   }
