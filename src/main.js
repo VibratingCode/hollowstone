@@ -527,7 +527,7 @@ function frame(now) {
     // ambience: fireflies at night on the surface, drifting light in the hollows
     const fx = Math.floor(player.pos[0]), fz = Math.floor(player.pos[2]), fy = Math.floor(player.pos[1] + 1.6);
     const underground = fy < columnTop(fx, fz) - 1 && fy < 56;
-    handLight = underground ? 0.32 : 0.3 + 0.7 * Math.max(sky.day === undefined ? 1 : sky.day, 0.25);
+    handLight = underground ? 0.45 : 0.3 + 0.7 * Math.max(sky.day === undefined ? 1 : sky.day, 0.25);
     const biome = world.gen.column(fx, fz).biome;
     if (underground && fy < 46) moteMode = "hollow";
     else if (!underground && (sky.night || 0) > 0.55 && (biome === 2 || biome === 3)) moteMode = "firefly";

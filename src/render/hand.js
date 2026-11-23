@@ -5,7 +5,7 @@ import { ATLAS_COLS, ATLAS_ROWS } from "../mesher.js";
 
 export class Hand {
   constructor(camera, atlas) {
-    this.mat = new THREE.MeshLambertMaterial({ map: atlas, alphaTest: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    this.mat = new THREE.MeshLambertMaterial({ map: atlas, emissiveMap: atlas, emissive: 0x333333, alphaTest: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
     this.cube = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), this.mat);
     this.flat = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.55), this.mat);
     this.group = new THREE.Group();
@@ -56,5 +56,6 @@ export class Hand {
     this.group.rotation.set(0.12 - s * 0.9, -0.72 + s * 0.3, s * 0.2);
     this.flat.rotation.y = 0.5;
     this.mat.color.setScalar(brightness);
+    this.mat.emissive.setScalar(0.12 + (1 - brightness) * 0.45); // never fully black, even underground
   }
 }
