@@ -87,6 +87,7 @@ export function createWaterMaterial(atlas) {
         float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uHorizon, uTop, pow(clamp(R.y, 0.0, 1.0), 0.5));
+        sky += uSunColor * pow(max(dot(R, uSunDir), 0.0), 6.0) * 0.6 * uSunI;
         vec3 deep = vec3(0.025, 0.11, 0.2) * (0.18 + 0.82 * uDay) * (0.35 + 0.65 * vSky);
         vec3 tex = texture2D(map, vUv).rgb;
         vec3 col = mix(deep + tex * 0.05 * uDay, sky * vSky, fres);

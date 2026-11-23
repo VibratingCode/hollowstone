@@ -427,7 +427,7 @@ function applyEnvironment(eye) {
     scene.fog.color.copy(WATER_FOG).multiplyScalar(0.25 + 0.75 * sky.day);
     scene.fog.near = 0.5; scene.fog.far = 24;
   } else {
-    scene.fog.color.copy(sky.horizon);
+    scene.fog.color.copy(sky.horizon).lerp(sky.top, 0.18);
     const far = player ? fogFar() : 7 * 16 * 0.95; // title flyover sees further
     scene.fog.near = far * 0.6; scene.fog.far = far;
   }

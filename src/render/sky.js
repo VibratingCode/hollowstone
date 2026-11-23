@@ -7,8 +7,8 @@ const KEYS = [
   { e: -1.0, top: C("#02040a"), hor: C("#070d1c") },
   { e: -0.22, top: C("#040816"), hor: C("#0e1730") },
   { e: -0.08, top: C("#111d42"), hor: C("#3b3054") },
-  { e: 0.02, top: C("#29508f"), hor: C("#f0915a") },
-  { e: 0.14, top: C("#2f6cb8"), hor: C("#e9c39a") },
+  { e: 0.02, top: C("#2a4f8c"), hor: C("#c9939a") },
+  { e: 0.14, top: C("#2f6cb8"), hor: C("#bfc4d4") },
   { e: 0.35, top: C("#2c74c6"), hor: C("#a7d1ea") },
   { e: 1.0, top: C("#2466b8"), hor: C("#9ccbe6") },
 ];
@@ -76,7 +76,7 @@ export function createSkyDome() {
         vec3 col = mix(uHorizon, uTop, pow(clamp(h, 0.0, 1.0), 0.48));
         if (h < 0.0) col = mix(uHorizon, uHorizon * 0.55, clamp(-h * 3.0, 0.0, 1.0));
         float sd = dot(d, uSunDir);
-        col += uSunColor * pow(max(sd, 0.0), 5.0) * (0.12 + 0.55 * uSunset);
+        col += uSunColor * pow(max(sd, 0.0), 4.0) * (0.1 + 0.9 * uSunset) * vec3(1.0, 0.72, 0.45);
         col += uSunColor * pow(max(sd, 0.0), 90.0) * 0.8;
         col += uSunColor * smoothstep(0.99935, 0.99965, sd) * 24.0;
         float md = dot(d, -uSunDir);

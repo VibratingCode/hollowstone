@@ -125,7 +125,7 @@ const painters = {
   },
   [T.DUSKCANOPY](t) {
     // Duskwood foliage: deep violet-teal, a Hollowstone signature colour
-    t.fill("#4a4c84", 16);
+    t.fill("#55589a", 16);
     for (let i = 0; i < 50; i++) t.set((t.rand() * S) | 0, (t.rand() * S) | 0, [0, 0, 0], 0);
     t.speck("#6168a8", 22); t.speck("#3d8a86", 12); t.speck("#2b2c58", 24);
   },
